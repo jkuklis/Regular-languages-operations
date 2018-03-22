@@ -20,14 +20,13 @@ simpl :: Eq c => Reg c -> Reg c
 simpl x = case x of
     Many(y) -> let s = simpl(y) in case s of
         Eps -> s
-        Empty -> s
+        Empty -> Eps
         Many(_) -> s
         _ -> Many(s)
     (l :> r) -> let g = gather_c x [] in if (has_Empty g)
         then Empty
         else roll_c (remove_Eps g)
-        
-    (l :| r) -> let g = nub (gather_a x []) in roll_a g 
+    (l :| r) -> let g = nub (gather_a x []) in roll_a (remove_Empty g) 
     _ -> x
 
 gather_c :: Eq c => Reg c -> [Reg c] -> [Reg c]
@@ -91,12 +90,12 @@ empty r = case simpl(r) of
 
 der :: Eq c => c -> Reg c -> Reg c
 der c r = case r of
-    Lit c -> Eps
-    Eps -> Eps
+    Lit d -> if d == c then Eps else Empty
+    Eps -> Empty
     Empty -> Empty
     Many(y) -> simpl((der c y) :> Many(y))
     (x :| y) -> simpl((der c x) :| (der c y))
-    (x :> y) -> if (nullable x) 
+    (x :> y) -> if (nullable x)
         then simpl(((der c x) :> y) :| (der c y))
         else simpl((der c x) :> y)
 
@@ -106,30 +105,37 @@ ders c r = case c of
     (x:xs) -> ders xs (der x r)
 
 accepts :: Eq c => Reg c -> [c] -> Bool
-accepts r w = if nullable (ders w r)
-    then True
-    else False
+accepts r w = if w == [] 
+    then False 
+    else if nullable (ders w r)
+        then True
+        else False
 
 mayStart :: Eq c => c -> Reg c -> Bool
 mayStart c r = (accepts r [c]) || not(empty (der c r)) 
 
 match :: Eq c => Reg c -> [c] -> Maybe [c]
-match r w = case (match_h r w Nothing) of
+match r w = case (match_h r r w Nothing) of
     Nothing -> Nothing
     Just p -> Just (reverse p)
 
-match_h :: Eq c => Reg c -> [c] -> Maybe [c] -> Maybe [c]
-match_h r w acc = case w of
+match_h :: Eq c => Reg c -> Reg c -> [c] -> Maybe [c] -> Maybe [c]
+match_h r r_org w acc = case w of
     [] -> acc
     (x:xs) -> let d = der x r in case d of
-        Empty -> if (accepts d [x])
+        Empty -> case acc of
+            
+        
+        if (accepts d [x])
             then case acc of
                 Nothing -> Just [x]
                 Just p -> Just (x : p)
-            else acc
+            else if (accepts r_org acc) 
+                then acc 
+                else Nothing
         _ -> case acc of
-            Nothing -> match_h d xs (Just [x])
-            Just p -> match_h d xs (Just (x : p))
+            Nothing -> match_h d r_org xs (Just [x])
+            Just p -> match_h d r_org xs (Just (x : p))
 
 search :: Eq c => Reg c -> [c] -> Maybe [c]
 search r w = case w of
@@ -139,13 +145,18 @@ search r w = case w of
         else search r xs
 
 findall :: Eq c => Reg c -> [c] -> [[c]]
-findall r w = findall_h r w []
-
+findall r w = let rev = reverse (findall_h r w []) in 
+    if (match r w == Nothing) && (nullable r) 
+        then ([] : rev)
+        else rev
+    
 findall_h :: Eq c => Reg c -> [c] -> [[c]] -> [[c]]
 findall_h r w acc = case w of
     [] -> acc
     (x:xs) -> if (mayStart x r)
-        then let Just p = match r w in findall_h r xs (p : acc)
+        then let m = match r w in case m of
+            Just p -> let l = length p - 1 in findall_h r (drop l xs) (p : acc)
+            Nothing -> findall_h r xs acc
         else findall_h r xs acc
 
 char :: Char -> Reg Char
