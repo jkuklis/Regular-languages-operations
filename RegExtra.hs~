@@ -16,38 +16,64 @@ instance Mon (Reg c) where
   m1 = Eps
   x <> y = x :> y
   
-simpl :: Reg c -> Reg c
+simpl :: Eq c => Reg c -> Reg c
 simpl x = case x of
     Many(y) -> let s = simpl(y) in case s of
         Eps -> s
         Empty -> s
         Many(_) -> s
         _ -> Many(s)
-    (l :> r) -> let ls = simpl(l) in case ls of
-        Eps -> simpl(r)
-        Empty -> Empty
-        _ -> let rs = simpl(r) in case rs of
-            Eps -> ls
-            Empty -> Empty
-            _ -> (ls :> rs)
-    (l :| r) -> let ls = simpl(l) in let rs = simpl(r) in case ls of
-        Empty -> rs
-        _ -> case rs of
-            Empty -> ls
-            _ -> (ls :| rs)   
+    (l :> r) -> let g = gather_c x [] in if (has_Empty g)
+        then Empty
+        else roll_c (remove_Eps g)
+        
+    (l :| r) -> let g = nub (gather_a x []) in roll_a g 
     _ -> x
 
-gather_c :: Reg c -> [Reg c]
-gather_c x = case x of
-    (l :> r) -> (gather_c l) ++ (gather_c r)
-    _ -> [simpl(x)]
+gather_c :: Eq c => Reg c -> [Reg c] -> [Reg c]
+gather_c x acc = case x of
+    (l :> r) -> gather_c l (gather_c r acc)
+    _ -> simpl(x) : acc
     
-has a [] = False
-has a (x:xs)
-    | a == x = True
-    | otherwise = has a xs    
+gather_a :: Eq c => Reg c -> [Reg c] -> [Reg c]
+gather_a x acc = case x of
+    (l :| r) -> gather_a l (gather_a r acc)
+    _ -> simpl(x) : acc    
+    
+has_Empty :: [Reg c] -> Bool
+has_Empty g = case g of
+    [] -> False
+    (x:xs) -> case x of
+        Empty -> True
+        _ -> has_Empty xs   
 
+remove_Eps :: [Reg c] -> [Reg c]
+remove_Eps g = case g of
+    [] -> []
+    (x:xs) -> case x of
+        Eps -> remove_Eps xs
+        _ -> x : (remove_Eps xs)
+        
+remove_Empty :: [Reg c] -> [Reg c]
+remove_Empty g = case g of
+    [] -> []
+    (x:xs) -> case x of
+        Empty -> remove_Empty xs
+        _ -> x : (remove_Empty xs)
 
+roll_c :: [Reg c] -> Reg c
+roll_c g = case g of
+    [] -> Eps
+    (x:xs) -> case xs of
+        [] -> x
+        _ -> x :> (roll_c xs)
+        
+roll_a :: [Reg c] -> Reg c
+roll_a g = case g of
+    [] -> Empty
+    (x:xs) -> case xs of
+        [] -> x
+        _ -> x :| (roll_a xs)        
 
 nullable :: Reg c -> Bool
 nullable x = case x of
@@ -58,12 +84,12 @@ nullable x = case x of
     (x :| y) -> (nullable x) || (nullable y)
     (x :> y) -> (nullable x) && (nullable y)
 
-empty :: Reg c -> Bool 
+empty :: Eq c => Reg c -> Bool 
 empty r = case simpl(r) of
     Empty -> True
     _ -> False    
 
-der :: c -> Reg c -> Reg c
+der :: Eq c => c -> Reg c -> Reg c
 der c r = case r of
     Lit c -> Eps
     Eps -> Eps
