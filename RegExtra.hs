@@ -127,11 +127,23 @@ match_h r w acc prev =
             (x:xs) -> match_h (der x r) xs (x : acc) prev'     
 
 search :: Eq c => Reg c -> [c] -> Maybe [c]
-search r w = case w of
-    [] -> Nothing
-    (x:xs) -> if (mayStart x r)
-        then match r w
-        else search r xs
+search r w = 
+    if check_eps r w then Just [] else
+        case w of
+        [] -> if nullable r 
+            then Just [] 
+            else Nothing
+        (x:xs) -> let m = match r w in case m of
+            Nothing -> search r xs
+            _ -> m
+
+check_eps :: Eq c => Reg c -> [c] -> Bool
+check_eps r w =
+    case w of
+        [] -> False
+        (x:xs) -> if (nullable r) && (match r w == Nothing)
+            then True
+            else False
 
 findall :: Eq c => Reg c -> [c] -> [[c]]
 findall r w = let rev = reverse (findall_h r w []) in 
