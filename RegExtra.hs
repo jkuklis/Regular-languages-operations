@@ -115,21 +115,16 @@ mayStart :: Eq c => c -> Reg c -> Bool
 mayStart c r = (accepts r [c]) || not(empty (der c r)) 
 
 match :: Eq c => Reg c -> [c] -> Maybe [c]
-match r w = match_h r r w []
+match r w = case (match_h r w [] Nothing) of
+    Nothing -> Nothing
+    Just p -> Just (reverse p)
 
-match_h :: Eq c => Reg c -> Reg c -> [c] -> [c] -> Maybe [c]
-match_h r r_org w acc = case w of
-    [] -> let rev = reverse acc in if accepts r_org rev
-        then Just rev
-        else Nothing
-    (x:xs) -> let d = der x r in case d of
-        Empty -> let rev = reverse (x : acc) in 
-            if accepts r_org rev
-                then Just rev
-            else let rev2 = reverse acc in if accepts r_org rev2 
-                then Just rev2
-                else Nothing
-        _ -> match_h d r_org xs (x : acc)
+match_h :: Eq c => Reg c -> [c] -> [c] -> Maybe [c] -> Maybe[c]
+match_h r w acc prev =
+    let prev' = if nullable r then Just acc else prev in
+        case w of
+            [] -> prev'
+            (x:xs) -> match_h (der x r) xs (x : acc) prev'     
 
 search :: Eq c => Reg c -> [c] -> Maybe [c]
 search r w = case w of
