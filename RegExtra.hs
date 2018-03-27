@@ -146,19 +146,20 @@ check_eps r w =
             else False
 
 findall :: Eq c => Reg c -> [c] -> [[c]]
-findall r w = let rev = reverse (findall_h r w []) in 
+findall r w = let rev = reverse (findall_h r w [] (-1)) in 
     if (match r w == Nothing) && (nullable r) 
         then ([] : rev)
         else rev
     
-findall_h :: Eq c => Reg c -> [c] -> [[c]] -> [[c]]
-findall_h r w acc = case w of
+findall_h :: Eq c => Reg c -> [c] -> [[c]] -> Int -> [[c]]
+findall_h r w acc lmin = case w of
     [] -> acc
-    (x:xs) -> if (mayStart x r)
-        then let m = match r w in case m of
-            Just p -> let l = length p - 1 in findall_h r (drop l xs) (p : acc)
-            Nothing -> findall_h r xs acc
-        else findall_h r xs acc
+    (x:xs) -> let m = match r w in case m of
+        Just p -> let l = length p in
+            if l >= lmin 
+                then findall_h r xs (p : acc) l
+                else findall_h r xs acc (lmin - 1)
+        Nothing -> findall_h r xs acc (lmin - 1)
 
 char :: Char -> Reg Char
 char = Lit

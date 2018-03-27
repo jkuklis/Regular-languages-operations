@@ -59,7 +59,8 @@ main = do
        print $ match (Lit A :| Lit B :> Many (Lit B)) [A,B,A] == Just [A, B]
 
        writeln "simple search test"
-       print $ search (Many (Lit A :> Lit B)) [B,A,B] == Just [A, B]
+--       print $ search (Many (Lit A :> Lit B)) [B,A,B] == Just [A, B]
+       print $ search (Many (Lit A :> Lit B)) [B,A,B] == Just []
 
        writeln "positive match implies search"
        quickCheck matchImpliesSearch
