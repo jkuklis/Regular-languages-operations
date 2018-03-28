@@ -29,6 +29,7 @@ simpl x = case x of
         let 
             gather (l :> r) acc = gather l (gather r acc)
             gather x acc = simpl(x) : acc 
+            
         in let g = gather x [] in 
             if (has_Empty g)
             then Empty
@@ -49,6 +50,7 @@ simpl x = case x of
         let 
             gather (l :| r) acc = gather l (gather r acc)
             gather x acc = simpl(x) : acc
+
         in let g = nub (gather x []) in 
             roll (remove_Empty g) 
             where 
@@ -96,49 +98,52 @@ mayStart :: Eq c => c -> Reg c -> Bool
 mayStart c r = (accepts r [c]) || not(empty (der c r)) 
 
 match :: Eq c => Reg c -> [c] -> Maybe [c]
-match r w = case (match_h r w [] Nothing) of
-    Nothing -> Nothing
-    Just p -> Just (reverse p)
-
-match_h :: Eq c => Reg c -> [c] -> [c] -> Maybe [c] -> Maybe[c]
-match_h r w acc prev = case w of
-        [] -> prev'
-        (x:xs) -> match_h (der x r) xs (x : acc) prev' 
-    where prev' = if nullable r then Just acc else prev
+match r w = 
+    let prev_h r acc prev = if nullable r then Just acc else prev in 
+    let 
+        match_h r [] acc prev = prev_h r acc prev
+        match_h r (x:xs) acc prev = match_h (der x r) xs (x : acc) (prev_h r acc prev)
+        
+    in case (match_h r w [] Nothing) of
+        Nothing -> Nothing
+        Just p -> Just (reverse p)
 
 search :: Eq c => Reg c -> [c] -> Maybe [c]
-search r w = if check_eps r w 
-    then Just []
-    else search_h r w
-            
-search_h :: Eq c => Reg c -> [c] -> Maybe [c]
-search_h r [] = if nullable r 
-    then Just []
-    else Nothing
-search_h r w@(x:xs) = let m = match r w in case m of
-    Nothing -> search_h r xs
-    _ -> m            
-
-check_eps :: Eq c => Reg c -> [c] -> Bool
-check_eps r [] = False
-check_eps r w@(x:xs) = (nullable r) && (match r w == Nothing)
+search r w =
+    let
+        check_eps r [] = False
+        check_eps r w@(x:xs) = (nullable r) && (match r w == Nothing)
+        
+        search_h r [] = if nullable r 
+            then Just []
+            else Nothing
+        search_h r w@(x:xs) = let m = match r w in 
+            case m of
+                Nothing -> search_h r xs
+                _ -> m
+                
+    in if check_eps r w 
+        then Just []
+        else search_h r w          
 
 findall :: Eq c => Reg c -> [c] -> [[c]]
-findall r w = let rev = reverse (findall_h r w [] (-1)) in 
-    if (match r w == Nothing) && (nullable r) 
-        then ([] : rev)
-        else rev
+findall r w = 
+    let
+        findall_h r [] acc lmin = acc
+        findall_h r (x:xs) acc lmin =
+            let m = match r w in 
+            case m of
+                Nothing -> findall_h r xs acc (lmin - 1)
+                Just p -> let l = length p in
+                    if l >= lmin 
+                        then findall_h r xs (p : acc) l
+                        else findall_h r xs acc (lmin - 1)
+                
+    in let rev = reverse (findall_h r w [] (-1)) in 
+        if (match r w == Nothing) && (nullable r) 
+            then ([] : rev)
+            else rev
     
-findall_h :: Eq c => Reg c -> [c] -> [[c]] -> Int -> [[c]]
-findall_h r w acc lmin = case w of
-    [] -> acc
-    (x:xs) -> let m = match r w in case m of
-        Just p -> let l = length p in
-            if l >= lmin 
-                then findall_h r xs (p : acc) l
-                else findall_h r xs acc (lmin - 1)
-        Nothing -> findall_h r xs acc (lmin - 1)
-
 char :: Char -> Reg Char
 char = Lit
 
