@@ -18,42 +18,48 @@ instance Mon (Reg c) where
   
 simpl :: Eq c => Reg c -> Reg c
 simpl x = case x of
-    Many(y) -> let s = simpl(y) in case s of
-        Eps -> s
-        Empty -> Eps
-        Many _ -> s
-        _ -> Many s
-    (l :> r) -> let g = gather_c x [] in if (has_Empty g)
-        then Empty
-        else roll_c (remove_Eps g)
-        where remove_Eps g = filter (\x -> case x of Eps -> False; otherwise -> True) g
-    (l :| r) -> let g = nub (gather_a x []) in 
-        roll_a (remove_Empty g) 
-        where remove_Empty g = filter (\x -> case x of Empty -> False; otherwise -> True) g
-    _ -> x
-
-gather_c :: Eq c => Reg c -> [Reg c] -> [Reg c]
-gather_c x acc = case x of
-    (l :> r) -> gather_c l (gather_c r acc)
-    _ -> simpl(x) : acc
+    Many(y) -> 
+        let s = simpl(y) in case s of
+            Eps -> s
+            Empty -> Eps
+            Many _ -> s
+            _ -> Many s
+        
+    (l :> r) ->
+        let 
+            gather (l :> r) acc = gather l (gather r acc)
+            gather x acc = simpl(x) : acc 
+        in let g = gather x [] in 
+            if (has_Empty g)
+            then Empty
+            else roll (remove_Eps g)
+            where 
+                remove_Eps :: [Reg c] -> [Reg c]
+                remove_Eps g = filter (\x -> case x of Eps -> False; otherwise -> True) g
+                
+                has_Empty :: [Reg c] -> Bool
+                has_Empty g = foldr (\x acc -> case x of Empty -> True; _ -> acc) False g
+                
+                roll :: [Reg c] -> Reg c
+                roll [] = Eps
+                roll (x:[]) = x
+                roll (x:xs) = foldl' (\y acc -> y :> acc) x xs
     
-gather_a :: Eq c => Reg c -> [Reg c] -> [Reg c]
-gather_a x acc = case x of
-    (l :| r) -> gather_a l (gather_a r acc)
-    _ -> simpl(x) : acc    
-
-has_Empty :: [Reg c] -> Bool
-has_Empty g = foldr (\x acc -> case x of Empty -> True; _ -> acc) False g
-        
-roll_c :: [Reg c] -> Reg c
-roll_c [] = Eps
-roll_c (x:[]) = x
-roll_c (x:xs) = foldl' (\y acc -> y :> acc) x xs
-        
-roll_a :: [Reg c] -> Reg c
-roll_a [] = Empty
-roll_a (x:[]) = x
-roll_a (x:xs) = foldl' (\y acc -> y :| acc) x xs
+    (l :| r) ->
+        let 
+            gather (l :| r) acc = gather l (gather r acc)
+            gather x acc = simpl(x) : acc
+        in let g = nub (gather x []) in 
+            roll (remove_Empty g) 
+            where 
+                remove_Empty :: [Reg c] -> [Reg c]
+                remove_Empty g = filter (\x -> case x of Empty -> False; otherwise -> True) g
+                
+                roll :: [Reg c] -> Reg c
+                roll [] = Empty
+                roll (x:[]) = x
+                roll (x:xs) = foldl' (\y acc -> y :| acc) x xs
+    _ -> x
 
 nullable :: Reg c -> Bool
 nullable x = case x of
@@ -65,7 +71,7 @@ nullable x = case x of
     (x :> y) -> (nullable x) && (nullable y)
 
 empty :: Eq c => Reg c -> Bool 
-empty r = (simpl(r) == Empty)   
+empty r = (simpl r == Empty)   
 
 der :: Eq c => c -> Reg c -> Reg c
 der c r = case r of
